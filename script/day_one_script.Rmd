@@ -1,0 +1,750 @@
+---
+title: "Day One"
+output: 
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+# Your First R Script
+
+The first thing we're going to do is to run a script that will generate some data visualisations based on an open dataset of UFO observations. The dataset is part of Tidy Tuesday data wrangling/visualisation set of challenges. The script below contains code that wrangles and visualises the data. Don't worry at this stage what each line does as we'll be exploring it in more detail later. At this point, I just want you all to run a script to check your installation of R is working as it should. And I thought it might as well be a fun script!
+
+We will create three visualisations of UFO sightings in the US using a database of more than 80,000 UFO sightings over the years.
+
+Note, the entire script can be grabbed from here: https://raw.githubusercontent.com/ajstewartlang/ou_day_one/main/script/ufo_script.R
+
+The first two lines below load the packages we are going to use. The `{tidyverse}` package contains a number of individual packages that all play nicely together. They are based on the idea of tidy data and functions that operate on the data in a human-readable manner. 
+
+```{r}
+library(tidyverse) 
+```
+
+Now we are going to read in the data. Note that we are doing this using the `read_csv()` function but than than reading in the data locally (i.e., from somewhere on our own computer), we are loading it from a website. The data is in `.csv.` format which is a common format for rectangular datasets (i.e., datasets with rows and columns). The line at the start `# read in data` is a comment - as indicated by the `#` and won't be interpreted as an R command. Comments are useful not just for others but for your future self. It's a good idea to get into the habit of adding comments to your code - your future self will be thankful!
+ 
+```{r}
+# read in data 
+ufo_sightings <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-06-25/ufo_sightings.csv")
+```
+
+Next we're going to create our first plot. We map the plot itself onto a variable I'm calling `plot1`. To display the plot, we can then simply type `plot1`. This visualisation shows us the top 10 states with the number of UFO sightings in each state. The symbol `%>%` in the code below is the pipe operator and can be read as "and then". It allows us to pipe together lines of code. The `+` can be read in the same way when it appears at the end of lines following the `ggplot()` function.
+
+```{r}
+# plot of top 10 US states with number of sightings in each state
+plot1 <- ufo_sightings %>%
+  filter(!is.na(state)) %>%
+  mutate(state = str_to_upper(state)) %>%
+  group_by(state) %>%
+  tally() %>%
+  top_n(10) %>%
+  ggplot(aes(x = reorder(state, n), y = n, fill = state)) +
+  geom_col() + 
+  coord_flip() +
+  guides(fill = 'none') + 
+  labs(title = "Top 10 States for UFO Sightings",
+       x = NULL, 
+       y = NULL) +
+  ylim(0, 11000) +
+  theme_minimal() +
+  theme(text = element_text(size = 15))
+
+plot1
+```
+
+We're now going to do a little wrangling to ensure we select the 48 contiguous states (sorry Alaska and Hawaii). I'm mapping this list of 48 states onto a new variable called `tidied_ufo`.
+
+```{r}
+# work out states within lat and long limits (i.e., exclude Alaska and Hawaii)
+tidied_ufo <- ufo_sightings %>%
+  filter(country == "us") %>%
+  filter(state != "ak" & state != "hi")
+```
+
+Now we're ready for our second plot where we're plotting the sightings using their latitude and longitude co-ordinates. There are so many we have a pretty decent approximation of the contiguous US.
+
+```{r}
+# plot all sightings on a map of the US
+plot2 <- tidied_ufo %>%
+  ggplot(aes(x = longitude, y = latitude)) + 
+  geom_point(size = .5, alpha = .25) +
+  theme_void() +
+  coord_cartesian() +
+  labs(title = "Sites of UFO Sightings in the US") +
+  guides(colour = 'none') +
+  guides(fill = 'none') +
+  theme(text = element_text(size = 15))
+ 
+plot2
+```
+
+There are quite a lot of sightings in California (maybe not a huge surprise) so let's look at those separately. We'll start by plotting the 10 most common UFO shapes seen in the state.
+
+```{r}
+# plot of top 10 UFO shapes in California
+plot3 <- tidied_ufo %>%
+  filter(state == "ca") %>%
+  filter(ufo_shape != "other") %>%
+  filter(ufo_shape != "unknown") %>%
+  group_by(ufo_shape) %>%
+  tally() %>%
+  top_n(10) %>%
+  mutate(ufo_shape = str_to_title(ufo_shape)) %>%
+  ggplot(aes(x = reorder(ufo_shape, n), y = n, fill = ufo_shape)) +
+  geom_col() + 
+  coord_flip() +
+  guides(fill = 'none') + 
+  labs(title = "California Top 10 UFO Shapes",
+       x = NULL, 
+       y = NULL) +
+  theme_minimal() +
+  theme(text = element_text(size = 15))
+
+plot3
+```
+
+And if we want to save any of our plots we could do so as follows... 
+
+```{r}
+ggsave("ufo_plot.jpg", plot = plot2, width = 12, height = 10)
+```
+
+I'd now like you to change some parameters in the script above to see what happens. Maybe think about changing the alpha value in `geom_point()` What does that do? What other values could you change in the script?
+
+# Data Wrangling
+
+Let's take our first detailed look at data wrangling. We are going to start with a dataset that comes with the `tidyverse`. The dataset is called `mpg` and comprises fuel economy data from 1999 to 2008 for 38 popular models of cars in the US.
+
+You should create a new script for this lesson. At the start of the new script, add the line `library(tidyverse)` to ensure that the `tidyverse` is loaded when you run your script.
+
+## The `mpg` dataset
+
+The `mpg` dataset is a dataset that comes with the `tidyverse`. In the help file, which you can access by typing `help(mpg)` or `?mpg` we see the following:
+
+>Description
+>This dataset contains a subset of the fuel economy data that the EPA makes available on http://fueleconomy.gov. It contains only models which had a new release every year between 1999 and 2008 - this was used as a proxy for the popularity of the car. 
+
+>A data frame with 234 rows and 11 variables.  
+
+>manufacturer - manufacturer  
+model - model name  
+displ - engine displacement, in litres  
+year - year of manufacture  
+cyl - number of cylinders  
+trans -type of transmission  
+drv -f = front-wheel drive, r = rear wheel drive, 4 = 4wd  
+cty - city miles per gallon  
+hwy - highway miles per gallon  
+fl - fuel type  
+class - "type" of car  
+
+## Using `head()` and `str()`
+
+We can explore the `mpg` dataset in a number of ways. If we want to look at the first 6 lines of the dataset, we can use the `head()` function.
+
+```{r}
+head(mpg)
+```
+
+We see that it is a tibble - or a rectangular data frame - made up of rows and columns. This is `tidy` format where each observation corresponds to a row. Most of the analyses we will run in R involve `tidy` data. Within the `tidyverse`, the `tibble` is the standard way to represent data. You'll spend a lot of time tidying and wrangling your data to get it into this format. By doing this in R using a script that you write, you are making this key stage *reproducible*. You can run the script again on an updated or different dataset - thus likely saving you lots of time...
+
+We can also ask for information about the structure of our dataset with `str()`. This will tell us about the columns, what type of variable each is, the number of rows etc.
+
+```{r}
+str(mpg)
+```
+
+## Use `select()` to select columns
+
+If we want to, we could just select one of the columns using the `select()` function. Below we are just selecing the column entitled `manufacturer`.
+
+```{r}
+mpg %>%
+  select(manufacturer)
+```
+
+Related to the `select()` function is `rename()`. It does exactly what you think it might; it renames a column.
+
+We can also look at the different car manufacturers in the dataset by using the `distinct()` function. This gives us the unique manufacturer names. This function can be quite handy if you want to check a dataset for duplicates of (e.g.) participant IDs.
+
+```{r}
+mpg %>%
+  distinct(manufacturer)
+```
+
+## Use `filter()` to select rows
+
+Sometimes we might want to select only a subset of rows in our dataset. We can do that using the `filter()` function. For example, here we filter our dataset to include only cars made by 'honda'.
+
+```{r}
+mpg %>%
+  filter(manufacturer == "honda")
+```
+
+Note, we use the operator `==` which means 'is equal to'. This is a logical operator - other logical operators include less than `<`, greater than `>`, less than or equal to `<=`, greater then or equal to `>=`, and is not equal to `!=`.
+
+We can also filter using a combination of possibilities via logical OR `|` or logical AND `&`. The first code chunk below filters the dataset for cases where the manufacturer is 'honda' OR 'toyota'.
+
+```{r}
+mpg %>%
+  filter(manufacturer == "honda" | manufacturer == "toyota")
+```
+
+While below we filter for cases where the manufacturer is 'honda' and the year of manufacture is '1999'.
+
+```{r}
+mpg %>% 
+  filter(manufacturer == "honda" & year == "1999")
+```
+
+### Combining functions
+
+We can combine the use of `filter()` with `select()` to filter for case where the manufacturer is 'honda', the year of manufacture is '1999' and we only want to display these two columns plus those telling us about fuel economy - `cty` and `hwy`.
+
+```{r}
+mpg %>% 
+  filter(manufacturer == "honda" & year == "1999") %>%
+  select(manufacturer, year, cty, hwy)
+```
+
+By combining just a few functions, you can imagine that we can build some quite complex data wrangling rules quite straightforwardly.  
+
+## The pipe `%>%`
+
+Note that in these examples above we used the `%>%` operator again. All of the functions (such as `select()`, `filter()` etc.) in the `tidyverse` are known as verbs, and they describe what they do. The pipe is one of the most commonly used operators in the `tidyverse` and allows us to chain together different lines of code - with the output of each line being passed on as input into the next. In this example, the dataset `mpg` is passed along to the `distinct()` function where we ask for a list of the distinct (i.e., unique) manufacturers. This output itself is a vector. Vectors are a basic data structure and contain elements of the same type - for example, a bunch of numbers. We can add another line to our piped chain to tell us how many elements are in this vector. We could read this out loud as 'take the dataset mpg, and then work out the distinct manufacturer names, and then count them'. 
+
+```{r}
+mpg %>% 
+  distinct(manufacturer) %>%
+  count()
+```
+
+## Tidying up a dataset
+
+### Tidying variable names
+
+At the moment, the car manufacturer names are all in lower case. It would look a lot nicer if they were in title case (i.e., with capitalisation on the first letter of each word). We can use the `mutate()` function to create a new column - this time, the name of the new column is also the name of the old column that we're wanting to modify using the function `str_to_title()`. What this will do is overwrite the column `manufacturer` and replace it with the new version with the car manufacturer names in title case.
+
+```{r}
+mpg %>%
+  mutate(manufacturer = str_to_title(manufacturer)) 
+```
+
+The column `model` is also lowercase. Let's make that title case too.  We can use the `mutate()` function to work over more than one column at the same time like this:
+
+```{r}
+mpg %>%
+  mutate(manufacturer = str_to_title(manufacturer), model = str_to_title(model))
+```
+
+There are quite a few columns there, so how about we select just the manufacturer, model, year, transmission, and hwy columns:
+
+```{r}
+mpg %>%
+  mutate(manufacturer = str_to_title(manufacturer), model = str_to_title(model)) %>%
+  select(manufacturer, model, year, trans, hwy)
+```
+
+## Recoding variables 
+
+In the real world, data frames do not always arrive on our computer in tidy format. Very often you need to engage in some data tidying before you can do anything useful with them. We're going to look at an example of how we go from messy data to tidy data.
+
+```{r, message=FALSE}
+my_messy_data <- read_csv("https://raw.githubusercontent.com/ajstewartlang/03_data_wrangling/master/data/my_data.csv")
+```
+
+We ran a reaction time experiment with 24 participants and 4 conditions - the conditions are numbered 1-4 in our data file.
+
+```{r}
+head(my_messy_data)
+```
+
+This is a repeated measures design where we had one factor (Prime Type) with two levels (A vs. B) and a second factor (Target Type) with two levels (A vs. B). We want to recode our data frame so it better matches our experimental design. First we need to recode our 4 conditions like this:
+
+Recode condition columns follows:
+Condition 1 = Prime A, Target A
+Condition 2 = Prime A, Target B
+Condition 3 = Prime B, Target A
+Condition 4 = Prime B, Target B
+
+```{r}
+my_messy_data %>% 
+  mutate(condition = recode(condition,
+                            "1" = "PrimeA_TargetA",
+                            "2" = "PrimeA_TargetB", 
+                            "3" = "PrimeB_TargetA", 
+                            "4" = "PrimeB_TargetB")) %>%
+  head()
+```
+
+We now need to separate out our Condition column into two - one for our first factor (Prime), and one for our second factor (Target). The `separate()` function does just this - when used in conjunction with a piped tibble, it needs to know which column we want to separate, what new columns to create by separating that original column, and on what basis we want to do the separation. In the example below we tell `separate()` that we want to separate the column labeled `condition` into two new columns called `Prime` and `Target` and we want to do this at any points where a `_` is present in the column to be separated.
+
+```{r}
+my_messy_data %>% 
+  mutate(condition = recode(condition,
+                            "1" = "PrimeA_TargetA",
+                            "2" = "PrimeA_TargetB", 
+                            "3" = "PrimeB_TargetA", 
+                            "4" = "PrimeB_TargetB")) %>%
+  separate(col = "condition", into = c("Prime", "Target"), sep = "_")
+```
+
+```{r}
+my_messy_data %>% 
+  mutate(condition = recode(condition,
+                            "1" = "PrimeA_TargetA",
+                            "2" = "PrimeA_TargetB", 
+                            "3" = "PrimeB_TargetA", 
+                            "4" = "PrimeB_TargetB")) %>%
+  separate(col = "condition", into = c("Prime", "Target"), sep = "_") %>%
+  mutate(Prime = factor(Prime), Target = factor(Target))
+```
+
+## The pivot functions
+
+Most of the analysis we will conduct in R requires our data to be in tidy, or long, format. In such data sets, one row corresponds to one observation. In the real world, data are rarely in the right format for analysis. In R, the `pivot_wider()` and `pivot_longer()` functions are designed to reshape our data files. First, let's load a datafile that is in wide format (i.e., multiple observations per row). It is from an experiment where we had four conditions (labelled Condition1, Condition2, Condition3, and Condition4). In addition to there being a column for each of the 4 conditions, we also have a column corresponding to participant ID. Each cell in the data set corresponds to a reaction time (measured in milliseconds).
+
+```{r, message=FALSE}
+my_wide_data <- read_csv("https://raw.githubusercontent.com/ajstewartlang/03_data_wrangling/master/data/my_wide_data.csv")
+```
+
+### The `pivot_longer()` function
+
+```{r}
+head(my_wide_data)
+```
+
+So, we can see the data file is in wide format. We want to reshape it to long format. We can do that using the `pivot_longer()` function.
+
+Minially, we need to specify the data frame that we want to reshape, the columns that we want to 'pivot' into longer format, the name of the new column that we are creating, and the name of the column that will hold the values of our reshaped data frame. We are going to map the output to a variable I'm calling `my_longer_data`.
+
+```{r}
+my_longer_data <- my_wide_data %>%
+  pivot_longer(cols = c(Condition1, Condition2, Condition3, Condition4), 
+               names_to = "Condition", 
+               values_to = "RT")
+```
+
+Now let's have a look at what our reshaped data frame looks like.
+
+```{r}
+head(my_longer_data)
+```
+
+So you can see our data are now in long - or tidy - format with one observation per row. Note that our `Condition` column isn't coded as a factor. It's important that our data set reflects the structure of our experiment so let's convert that column to a factor - note that in the following code we are now 'saving' the change as we are not mapping the output onto a variable name.
+
+```{r}
+my_longer_data %>%
+  mutate(Condition = factor(Condition)) %>%
+  head()
+```
+
+### The `pivot_wider()` function
+
+We can use the `pivot_wider()` function to reshape a long data frame so that it goes from long to wide format. It works similarly to `pivot_longer()`. Let's take our new, long, data frame and turn it back into wide format. With `pivot_wider()` we minimally need to specify the data frame that we want to reshape, and a pair or arguments (names_from and values_from) that describe from which column to get the name of the output column, and from which column to get the cell values.  
+
+```{r}
+my_wider_data <- my_longer_data %>%
+  pivot_wider(names_from = "Condition", 
+              values_from = "RT")
+```
+
+We can check that our data set is back in wide format.
+
+```{r}
+head(my_wider_data)
+```
+
+# Summarising Data
+
+Once a dataset has been tidied, often one of the first things we want to do is generate summary statistics. We'll continue using the `mpg` dataset. How would be go about generating (e.g.) the means and standard deviations grouped by car manufacturer for one of our variables?
+
+## Using `group_by()` and `summarise()`
+
+We are going to use the `group_by()` function to group the dataset, and then the `summarise()` function to calculate the mean and sd of the `hwy` variable. The `summarise()` function can take a lot of different functions to give us summary statistics. To read more about the different options, type `?summarise` in the Console window. Commonly used ones are `mean()`, `median()`, `sd()`.
+
+```{r}
+mpg %>%
+  group_by(manufacturer) %>%
+  summarise(mean_hwy = mean(hwy), sd_hwy = sd(hwy), number = n())
+```
+Note that this output is currently ordered alphabetically by the first column `manufacturer`. What if we wanted to order this out by mean highway fuel economy highest (best) to lowest (worst)? We can use the arrange function.
+
+### Re-ordering the output with `arrange()`
+
+```{r}
+mpg %>%
+  group_by(manufacturer) %>%
+  summarise(mean_hwy = mean(hwy), sd_hwy = sd(hwy), number = n()) %>%
+  arrange(mean_hwy)
+```
+
+Hmm, so that isn't what we want - this is going from lowest to highest which is the default in R. We can change that by putting a `-` sign in from of the parameter we can to order by.
+
+```{r}
+mpg %>%
+  group_by(manufacturer) %>%
+  summarise(mean_hwy = mean(hwy), sd_hwy = sd(hwy), number = n()) %>%
+  arrange(-mean_hwy)
+```
+
+This is looking better.
+
+## Adding columns using `mutate()`
+
+We can add a new column that I'm calling `mean_hwy` using the `mutate()` function like this.
+
+```{r}
+mpg %>% 
+  group_by(manufacturer) %>%
+  mutate(mean_hwy = mean(hwy), sd_hwy = sd(hwy))
+```
+
+We have too many columns to display on this page so we can drop a coouple by using the `select()` function slightly differently. By putting a `-` sign in front of a column names in `select()` we end up dropping it.
+
+```{r}
+mpg %>% 
+  group_by(manufacturer) %>%
+  mutate(mean_hwy = mean(hwy), sd_hwy = sd(hwy)) %>%
+  select(-class, -trans)
+```
+
+Note that this doesn't change the `mpg` dataset permanently - the changes won't be saved unless we map the output of this code onto a new variable. Below I am doing this by using the assignment operator `<-` to map it onto a new variable I'm calling `mpg_with_mean`. Note that we remove the grouping at the end as we don't want our grouping rule to remain in our new data frame.
+
+```{r}
+mpg_with_mean <- mpg %>% 
+  group_by(manufacturer) %>%
+    mutate(mean_hwy = mean(hwy), sd_hyw = sd(hwy)) %>%
+  ungroup() %>%
+  select(-class, -trans) 
+```
+
+We can then inspect this new variable using `head()` and `str()`.
+
+```{r}
+head(mpg_with_mean)
+```
+
+```{r}
+str(mpg_with_mean)
+```
+
+# Data Visualisation
+
+Being able to build clear visualisations is key to the successful communication of your data to your intended audience.
+
+There are a couple of great recent books focused on data visualisation that I suggest you have a look it. They both provide great perspectives on data visualisations and are full of wonderful examples of different kinds of data visualisations, some of which you'll learn how to build in this session.
+
+If you click on the image of the Claus Wilke book, you'll be taken to the online version of the book.
+
+&nbsp;&nbsp;
+
+<center>
+
+[![Link to Healey book](../images/healey.jpg){width=30%}](https://socviz.co) [![Link to Healey book](../images/wilke.png){width=30%}](https://serialmentor.com/dataviz/)
+
+</center>
+
+&nbsp;&nbsp;
+
+## The Basics of `ggplot2`
+
+You'll probaby want to start a fresh script for this lesson. Once you've done that, we need to load the `ggplot2` package. As it is part of the `tidyverse` (and we're likely to be using other `tidyverse` packages alongside `ggplot2`), we load it into our library using the `library(tidyverse)` line of code.
+
+`ggplot2` requires us to specify some core information in order to build our visualisations. These include the raw data that you want to plot, geometries (or geoms) that are the geometric shapes that will represent the data, and the aesthetics of the geometric and objects, such as color, size, shape and position.
+
+## Your First Visualisation
+
+Below is an example where we're using the `mpg` dataset (which is a dataset that contains information about cars) to build a visualisation that plots the points corresponding to city fuel economy (`cty`) on the y-axis and `manufacturer` on the x-axis.
+
+```{r}
+mpg %>%
+  ggplot(aes(x = manufacturer, y = cty)) + 
+  geom_point() 
+```
+
+So, this is not great. The x-axis labels are hard to read, and the individual points don't look that pleasing. We can use the `str_to_title()` function to change the manufacturer labels to title case, and adjust the axis labels easily using the `theme()` function. Note, the `+` symbol between the lines of `ggplot()` code is equivalent to the `%>%` operator. For historical reasons (basically, because `ggplot()` came before the other packages in the `tidyverse`), you need to use the `+` when adding layers to your `ggplot()` visualisations.
+
+```{r}
+mpg %>%
+  mutate(manufacturer = str_to_title(manufacturer)) %>%
+  ggplot(aes(x = manufacturer, y = cty)) + 
+  geom_point() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = .5))
+```
+
+### Improving the Plot
+
+So let's do some more tidying - we're going to jitter the points slightly (so they're not stacked vertically) using the `geom_jitter()` function, and tidy up the axis titles using the `labs()` function to explicitly add axis labels (rather than just use the labels in our dataset). We're also adding a few other tweaks - can you spot them?
+
+```{r}
+mpg %>%
+  mutate(manufacturer = str_to_title(manufacturer)) %>%
+  ggplot(aes(x = manufacturer, y = cty)) + 
+  geom_jitter(width = .2, alpha = .75, size = 2) + 
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = .5)) +
+  theme(text = element_text(size = 13)) +
+  labs(title = "City Fuel Economy by Car Manufacturer",
+       x = "Manufacturer", 
+       y = "City Fuel Economy (mpg)")
+```
+
+It might be helpful for us to add summary statistical information such as the mean fuel economy and confidence intervals around the mean for each car manufacturer.
+
+### Adding Summary Statistics
+
+We need to add the `Hmisc` package to allow us to use the `stat_summary()` function.
+
+```{r, message=FALSE}
+library(Hmisc)
+```
+
+```{r}
+mpg %>%
+  mutate(manufacturer = str_to_title(manufacturer)) %>%
+  ggplot(aes(x = manufacturer, y = cty)) + 
+  stat_summary(fun.data = mean_cl_boot, colour = "black", size = 1) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5, hjust = .5)) +
+  theme(text = element_text(size = 13)) +
+  labs(title = "City Fuel Economy by Car Manufacturer",
+       x = "Manufacturer", 
+       y = "City Fuel Economy (mpg)")
+```
+
+### The Finished(?) Plot
+
+At the moment, the x-axis is ordered alphabetically. How about we order it so that it goes from manufacturer with the hightest mean fuel economy, to the lowest. Also, how about we flip the visualisation so that the axes swap and add a few other tweaks?
+
+```{r}
+mpg %>%
+  mutate(manufacturer = str_to_title(manufacturer)) %>%
+  ggplot(aes(x = fct_reorder(manufacturer, .fun = mean, cty), y = cty, colour = manufacturer)) +
+  stat_summary(fun.data = mean_cl_boot, size = 1) +
+  geom_jitter(alpha = .25) +
+  theme_minimal() +
+  theme(text = element_text(size = 13)) +
+  labs(title = "Manufacturer by City Fuel Economy",
+       x = "Manufacturer", 
+       y = "City Fuel Economy (mpg)") +
+  guides(colour = FALSE) +
+  coord_flip()
+```
+
+This is looks pretty good. Can you tell what the other bits of code do that I added? Have a go changing some of the numbers to see what happens. You can prevent a line of code being run by adding a `#` in front of it. So if you need to temporarily not run a line, just add a `#` rather than delete the line.
+
+Plots are rarely completely "finished" as you'll often think of a minor aesthetic tweak that might make some improvement.
+
+### Using `facet_wrap()`
+
+We might think that fuel economy varies as a function of the type of vehicle (e.g., sports cars may be more fuel hungry than midsize cars) and by the number size of engine (e.g., cars with bigger engines may be more fuel hungry). In the visualisation below we're going to use the `facet_wrap()` function to build a separate visualisation for each level of the factor we are facetting over (ignoring SUVs).
+
+```{r}
+mpg %>%
+  filter(class != "suv") %>%
+  mutate(class = str_to_title(class)) %>%
+  ggplot(aes(x = displ, y = cty, colour = class)) + 
+  geom_jitter(width = .2) +
+  theme_minimal() +
+  theme(text = element_text(size = 13)) +
+  labs(title = "City Fuel Economy by Engine Displacement",
+       x = "Engine Displacement (litres)", 
+       y = "City Fuel Economy (mpg)") +
+  guides(colour = FALSE) +
+  facet_wrap(~ class)
+```
+
+Can you tell what each of code is doing? Again, edit the numbers and put a `#` before lines you want to temporarily ignore to see what happens.
+
+## Scatterplots
+
+Above we focused on plotting a numerical variable on one axis, and a categorical variable on the other. There will be cases where we want to create scatterplots, allowing us to plot two numerical variables against each other - possibly to determine whether there might be a relationship between the two. Below we are plotting Engine Displacement on the y-axis, and City Fuel Economy on the x-axis.
+
+```{r, message=FALSE}
+mpg %>%
+  mutate(class = str_to_upper(class)) %>%
+  ggplot(aes(x = cty, y = displ)) +
+  geom_point(aes(colour = class)) +
+  geom_smooth(se = FALSE) +
+  theme(text = element_text(size = 13)) +
+  theme_minimal() + 
+  labs(x = "City Fuel Economy (mpg)",
+       y = "Engine Displacement (litres)", 
+       colour = "Vehicle Class")
+```
+
+In the above example, we used the `geom_smooth()` function to add a layer corresponding to fitting a curve to our data. We can see a fairly clear negative correlation between Engine Displacement and Fuel Economhy for Fuel Economy values that are less than 25 mpg, but little relationship between the two for values that are great than 25 mpg. These seems to suggest there are some cars with relaitively small engines that have great fuel economy, and others with similar engine sizes were much worse fuel economy. 
+
+## Plotting Histograms
+
+We might want to plot a histogram of engine sizes (measured in litres and captured in the variable `displ` in the `mpg` dataset) to get a feel for how this variable is distributed.
+
+```{r}
+mpg %>%
+  ggplot(aes(x = displ)) +
+  geom_histogram(binwidth = .5, fill = "grey") +
+  labs(title = "Histogram of Engine Displacement",
+       x = "Engine Displacement (litres)",
+       y = "Count")
+```
+
+## The NHANES Dataset
+
+We're now going to visualise aspects of the NHANES dataset.
+
+&nbsp;&nbsp;
+
+>This is survey data collected by the US National Center for Health Statistics (NCHS) which has conducted a series of health and nutrition surveys since the early 1960's. Since 1999 approximately 5,000 individuals of all ages are interviewed in their homes every year and complete the health examination component of the survey. The health examination is conducted in a mobile examination centre (MEC). The NHANES target population is "the non-institutionalized civilian resident population of the United States". NHANES, (American National Health and Nutrition Examination surveys), use complex survey designs (see http://www.cdc.gov/nchs/data/series/sr_02/sr02_162.pdf) that oversample certain subpopulations like racial minorities. Naive analysis of the original NHANES data can lead to mistaken conclusions. The percentages of people from each racial group in the data, for example, are quite different from the way they are in the population.
+
+&nbsp;&nbsp;
+
+We need to load the `NHANES` package as this is where the dataset is contained.
+
+```{r}
+library(NHANES)
+```
+
+If running the above command generated an error, is it because you haven't installed the packed on your machine with `install.packages("NHANES")`?
+
+First we're going to explore the NHANES dataset.
+
+```{r}
+str(NHANES)
+```
+
+We see there are 76 columns and 10,000 rows. If we use the function `head()` we can see the first few rows of the dataframe.
+
+```{r}
+head(NHANES)
+```
+
+### Tidying the Data
+
+It looks like some participants appear more than once in the dataset - this could be due to the oversampling mentioned in the description - the first few rows are all for participant ID 51624. We can use the `select()` function alongwith the `n_distinct()` function to tell us the unique number of IDs in the dataset. 
+
+```{r}
+NHANES %>% 
+  select(ID) %>% 
+  n_distinct()
+```
+
+We see we have 6,779 unique individuals. Let's tidy our data to remove duplicate IDs. Note that below we're using the pipe operator `%>%` You can read it as 'and then' so it means we're taking the NHANES dataset and then filtering it keep just rows with distinct ID numbers. The pipe operator really helps with the readability of your data wrangling code and is an integral part of the tidyverse philosophy - tidy data and tidy code.
+
+```{r}
+NHANES_tidied <- NHANES %>% 
+  distinct(ID, .keep_all = TRUE)
+```
+
+```{r}
+str(NHANES_tidied)
+```
+
+OK, so our tidied dataset is assigned to the variable `NHANES_tidied` and has 6,779 rows (but still 76 columns) - as we'd expect given we have 6,779 unique individuals.
+
+### Plotting a Histogram
+
+Let's start exploring the data. We have lots of potential variables and relationships to explore. I see we have one labelled `Education` which is coded as a factor. We also have information related to health such as BMI - first of all lets plot a histogram of BMI.
+
+```{r, warning=FALSE}
+NHANES_tidied %>%
+  ggplot(aes(x = BMI)) + 
+  geom_histogram(bins = 100, na.rm = TRUE)
+```
+
+We see a pretty right skewed distribution here. Note our use of the `na.rm` parameter - this parameter appears in many `tidyverse` functions and by setting it to `TRUE` we tell R to ignore any parts of our data frame where we have missing data (which is indicated by `NA`).
+
+### Summary Statistics
+
+Does BMI vary as a function of Education level? In the code below we are using the data stored in the variable `NHANES_tidied`, grouping it by Education, then summarising to generate the median BMI for each of our groups. Again, we use the `na.rm = TRUE` parameter with the `summarise()` function this time to remove any missing values (`NA`) from our calculation. 
+
+```{r, warning=FALSE, message=FALSE}
+NHANES_tidied %>% 
+  group_by(Education) %>% 
+  summarise(median = median(BMI, na.rm = TRUE))
+```
+
+So it looks like those with College eduction have the lowest median BMI (ignoring the `NA` category which corresponds to cases where we don't have Education level recorded). 
+
+Let's graph it! Note here we're filtering out cases where we don't have BMI value recorded. The function `is.na()` returns TRUE when applied to a case of missing data (`NA`) - we use the `!` operator to negate this and combine several of these expressions together using the logical AND operator `&`. 
+
+The line of code below starting with `filter()` means filter cases where Education is not missing AND BMI is not missing. This means that the `NHANES_tidied` data that gets passed to the `ggplot()` call has no missing data for the key variables we're interested in. 
+
+I then add a `geom_violin()` layer to capture the shape of the distribution for each level of Education and `geom_boxplot()` layer to create a boxplot for each level of our Education factor - and I'm arranging the order in which they're displayed by using the `fct_reorder()` function to do the re-ordering based on the median BMI for the factor Education. 
+
+The `guides(colour = FALSE)` call suppresses displaying the colour legend - place a `#` in front of it and rerun the code to see what changes.
+
+```{r, warning=FALSE, message=FALSE}
+NHANES_tidied %>% 
+  filter(!is.na(Education) & !is.na(BMI)) %>%
+  ggplot(aes(x = Education, y = BMI, colour = Education)) + 
+  geom_violin() +
+  geom_jitter(alpha = .2, width = .1) +
+  geom_boxplot(alpha = .5) +
+  guides(colour = FALSE) + 
+  labs(title = "Examining the effect of education level on BMI", 
+       x = "Education Level", 
+       y = "BMI")
+```
+
+### Plotting Interaction Effects
+
+We can also plot how two factors interact with each other. For the plot above, we'll now add the factor `Diabetes` (which has two levels - `Yes` vs. `No`) to see how that might interact with Education level. To capture the nature of this interaction, we use the expression `Education:Diabetes` when we specify the x-axis aesthetic. Note, I have rotated the x-axis labels 45 degrees to make them easier to read.
+
+```{r, warning=FALSE, message=FALSE}
+NHANES_tidied %>% 
+  filter(!is.na(Education) & !is.na(BMI) & !is.na(Diabetes)) %>%
+  ggplot(aes(x = Education:Diabetes, y = BMI, colour = Education)) + 
+  geom_violin() +
+  geom_jitter(alpha = .2, width = .1) +
+  geom_boxplot(alpha = .5) +
+  guides(colour = FALSE) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5)) +
+  labs(title = "Examining the effect of education level and diabetes on BMI", 
+       x = "Education Level x Diabetes", 
+       y = "BMI")
+```
+
+We can see from the above plot that those with Diabetes seem to also have higher BMI scores for each level of Education.
+
+### Histograms with `facet_wrap()`
+
+We can also plot histograms of BMI separately for each Education level - we use the `facet_wrap()` function to do this.
+
+```{r, message=FALSE}
+NHANES_tidied %>% 
+  filter(!is.na(Education) & !is.na(BMI)) %>%
+  group_by(Education) %>% 
+  ggplot(aes(x = BMI, fill = Education)) +
+  geom_histogram() +
+  guides(fill = FALSE) + 
+  labs(title = "Examining the effect of education level on BMI",
+       x = "BMI", 
+       y = "Number of cases") + 
+  facet_wrap(~ Education)
+```
+
+In the above graph, notice that the same y-axis scale is used for each plot - this makes comparisons a little tricky as there are different numbers of cases for each Eduction level. Add the following `scales = "free"` after `Education` in the `facet_wrap()` line. What changes?
+
+Instead of generating the histograms using a count, we could generate them using a density function. Let's also add a density curve.
+
+```{r, warning=FALSE, message=FALSE}
+NHANES_tidied %>% 
+  filter(!is.na(Education) & !is.na(BMI)) %>%
+  group_by(Education) %>% 
+  ggplot(aes(x = BMI, fill = Education)) +
+  geom_histogram(aes(y = ..density..)) +
+  geom_density(aes(y = ..density..)) +
+  guides(fill = FALSE) + 
+  labs( title = "Examining the effect of education level on BMI", 
+        x = "BMI", 
+        y = "Density") + 
+  facet_wrap(~ Education)
+```
+
+Why don't you know try to create some new visualisations with either the `mpg` or `NHANES` datasets. There are many possible visualisations you could build with either dataset. 
